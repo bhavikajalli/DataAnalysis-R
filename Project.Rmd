@@ -1,0 +1,93 @@
+---
+title: "R Notebook"
+output: html_notebook
+author: "Bhavika Reddy Jalli"
+---
+
+```{r}
+# Data Cleaning and Recoding
+
+library(tidyverse)
+library(haven)
+data1 = read_sas("Data/nsch_2011_2012_puf.sas7bdat")
+
+cleaned_data = data1 %>%
+  select("BMICLASS","K2Q33A","K2Q05","K2Q01_D","STATE","AGEYR_CHILD","SEX") %>%
+  drop_na() 
+  
+cleaned_data = rename(cleaned_data,anxiety = K2Q33A,prematurity = K2Q05,teeth_health= K2Q01_D)
+cleaned_data = cleaned_data %>%
+  filter(anxiety == 0 | anxiety == 1)
+cleaned_data = cleaned_data %>%
+  filter(teeth_health != 96 & teeth_health != 97)
+cleaned_data$teeth_health <- recode(cleaned_data$teeth_health,`1`= 'EXCELLENT',`2`= 'VERY GOOD',`3` = 'GOOD',`4` = 'FAIR',`5` = 'POOR')
+cleaned_data$prematurity <- recode(cleaned_data$prematurity,`1`= 'Premature',`0`= 'Not Premature',.missing = "NA")
+cleaned_data = cleaned_data %>%
+  filter(prematurity != "NA")
+#1 - EXCELLENT 2 - VERY GOOD 3 - GOOD 4 - FAIR 5 - POOR
+cleaned_data$SEX <- recode(cleaned_data$SEX,`1`= 'Male',`2`= 'Female')
+cleaned_data$anxiety <- recode(cleaned_data$anxiety,`1`= 'Condition Exists',`0`= 'Condition Does Not Exist')
+
+```
+
+```{r}
+#How does the exposure variable(anxiety) relate to the outcome variable(BMICLASS)?
+library(ggpubr)
+ggplot(cleaned_data,aes(x = anxiety,y = BMICLASS))+geom_bin2d() #Not a good plot
+ggplot(cleaned_data,aes(x = anxiety,y = BMICLASS))+geom_jitter() #Not a good plot
+
+ggplot(cleaned_data,aes(x = BMICLASS,fill = anxiety))+ geom_bar(position = 'fill')+labs(title = "The Proportion of Children with anxiety in each BMI Class",x = "BMI Class", fill = "Anxiety")
+table(cleaned_data$BMICLASS,cleaned_data$anxiety)
+chisq.test(table(cleaned_data$BMICLASS,cleaned_data$anxiety))
+
+#Statistical Test
+l = cleaned_data
+l$BMICLASS = recode(l$BMICLASS,`2` = 'Normal', .default = 'Under and Over Weight')
+table(l$BMICLASS,l$anxiety)
+
+Prop_table = matrix(c(2221,28215,1472,15112),ncol=2,byrow=TRUE)
+colnames(Prop_table) <- c("ConExi","Total")
+rownames(Prop_table) <- c("Normal","Under and Over Weight")
+Prop_table = as.table(Prop_table)
+Prop_table
+chisq.test(Prop_table)
+prop.test(Prop_table)
+prop.test(table(l$BMICLASS,l$anxiety))
+
+ggplot(cleaned_data,aes(x = BMICLASS,fill = teeth_health))+ geom_bar(position = 'fill')
+
+
+
+```
+
+
+
+```{r}
+#Repeat the steps in Part 1 to explore the relationship between a potential confounder and the exposure (or outcome).
+
+library(vcd)
+BMIPrematurity = table(cleaned_data$BMICLASS,cleaned_data$prematurity,cleaned_data$anxiety)
+mosaicplot(~ prematurity+ BMICLASS, data = cleaned_data,shade = T)
+
+
+tab = xtabs(~ prematurity+ BMICLASS, data=cleaned_data)
+mosaic(data=tab,~ prematurity+BMICLASS, shade=TRUE, cex=2.5)
+ggplot(cleaned_data,aes(x = BMICLASS,fill = prematurity))+ geom_bar(position = 'fill')
+
+l = cleaned_data
+l$BMICLASS = recode(l$BMICLASS,`2` = 'Normal', .default = 'Under and Over Weight')
+table(l$BMICLASS,l$prematurity)
+
+Prop_table = matrix(c(2855,28215,1760,15112),ncol=2,byrow=TRUE)
+colnames(Prop_table) <- c("ConExi","Total")
+rownames(Prop_table) <- c("Normal","Under and Over Weight")
+Prop_table = as.table(Prop_table)
+Prop_table
+chisq.test(Prop_table)
+prop.test(table(l$BMICLASS,l$prematurity))
+prop.test(table(cleaned_data$BMICLASS,cleaned_data$anxiety))
+
+```
+
+
+
